@@ -170,6 +170,16 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         package = null,
         super(VideoPlayerValue(duration: null));
 
+  /// Constructs a [VideoPlayerController] playing a video from a file or a phAsset on iOS devices.
+  ///
+  /// This will load the file from the file-URI given by:
+  /// `'file://${fileIdentifier}'` or `'file://${fileIdentifier}'`.
+  VideoPlayerController.localFile(String fileIdentifier)
+      : dataSource = Platform.isIOS ? 'phasset://$fileIdentifier' : 'file://$fileIdentifier',
+        dataSourceType = DataSourceType.file,
+        package = null,
+        super(VideoPlayerValue(duration: null));
+
   int _textureId;
   final String dataSource;
 
@@ -204,6 +214,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         break;
       case DataSourceType.file:
         dataSourceDescription = <String, dynamic>{'uri': dataSource};
+      // dataSourceDescription = <String, dynamic>{'phAsset': dataSource};
     }
     final Map<dynamic, dynamic> response = await _channel.invokeMethod(
       'create',
