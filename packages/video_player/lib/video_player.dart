@@ -10,11 +10,11 @@ import 'package:flutter/material.dart';
 import 'package:meta/meta.dart';
 
 final MethodChannel _channel = const MethodChannel('flutter.io/videoPlayer')
-  // This will clear all open videos on the platform when a full restart is
-  // performed.
-  // TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
-  // https://github.com/flutter/flutter/issues/26431
-  // ignore: strong_mode_implicit_dynamic_method
+// This will clear all open videos on the platform when a full restart is
+// performed.
+// TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
+// https://github.com/flutter/flutter/issues/26431
+// ignore: strong_mode_implicit_dynamic_method
   ..invokeMethod('init');
 
 class DurationRange {
@@ -178,7 +178,9 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   /// This will load the file from the file-URI given by:
   /// `'file://${fileIdentifier}'` or `'file://${fileIdentifier}'`.
   VideoPlayerController.localFile(String fileIdentifier)
-      : dataSource = Platform.isIOS ? 'phasset://$fileIdentifier' : 'file://$fileIdentifier',
+      : dataSource = Platform.isIOS
+            ? 'phasset://$fileIdentifier'
+            : 'file://$fileIdentifier',
         dataSourceType = DataSourceType.file,
         package = null,
         super(VideoPlayerValue(duration: null));

@@ -6,6 +6,8 @@
 #import <AVFoundation/AVFoundation.h>
 #import <GLKit/GLKit.h>
 
+#import <Photos/Photos.h>
+
 int64_t FLTCMTimeToMillis(CMTime time) { return time.value * 1000 / time.timescale; }
 
 @interface FLTFrameUpdater : NSObject
@@ -61,7 +63,8 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
 
 - (void)initWithPHAssetLocalIdentifier:(NSString*)localIdentifier
                           frameUpdater:(FLTFrameUpdater*)frameUpdater
-                         onPlayerSetup:(void (^)(FLTVideoPlayer* playerItem))onPlayerSetup {
+                       onPlayerCreated:
+                           (void (^)(FLTVideoPlayer* playerItem))onPlayerCreatedHandler {
   PHFetchResult<PHAsset*>* phFetchResult =
       [PHAsset fetchAssetsWithLocalIdentifiers:@[ localIdentifier ] options:nil];
   // TODO what to do if the asset cannot be loaded? Send an error to flutter?
@@ -73,9 +76,11 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
                                   options:nil
                             resultHandler:^(AVPlayerItem* _Nullable playerItem,
                                             NSDictionary* _Nullable info) {
-                              FLTVideoPlayer* player =
-                                  [self initWithPlayerItem:playerItem frameUpdater:frameUpdater];
-                              onPlayerSetup(player);
+                              dispatch_async(dispatch_get_main_queue(), ^{
+                                FLTVideoPlayer* fltvPlayer = [self initWithPlayerItem:playerItem
+                                                                         frameUpdater:frameUpdater];
+                                onPlayerCreatedHandler(fltvPlayer);
+                              });
                             }];
 }
 
@@ -489,12 +494,13 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
       if ([uriArg hasPrefix:phAssetPrefix]) {
         NSString* phAssetArg = [uriArg substringFromIndex:[phAssetPrefix length]];
         NSLog(@"Loading PHAsset localIdentifier: %@", phAssetArg);
-        [[FLTVideoPlayer alloc]
-            initWithPHAssetLocalIdentifier:phAssetArg
-                              frameUpdater:frameUpdater
-                             onPlayerSetup:^(FLTVideoPlayer* player) {
-                               [self onPlayerSetup:player frameUpdater:frameUpdater result:result];
-                             }];
+        [[FLTVideoPlayer alloc] initWithPHAssetLocalIdentifier:phAssetArg
+                                                  frameUpdater:frameUpdater
+                                               onPlayerCreated:^(FLTVideoPlayer* player) {
+                                                 [self onPlayerSetup:player
+                                                        frameUpdater:frameUpdater
+                                                              result:result];
+                                               }];
       } else {
         player = [[FLTVideoPlayer alloc] initWithURL:[NSURL URLWithString:uriArg]
                                         frameUpdater:frameUpdater];
