@@ -59,8 +59,6 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
   return [self initWithURL:[NSURL fileURLWithPath:path] frameUpdater:frameUpdater];
 }
 
-// resultHandler:(void (^)(FLTVideoPlayer *playerItem, FLTFrameUpdater *frameUpdater))resultHandler
-
 - (void)initWithPHAssetLocalIdentifier:(NSString*)localIdentifier
                           frameUpdater:(FLTFrameUpdater*)frameUpdater
                        onPlayerCreated:
