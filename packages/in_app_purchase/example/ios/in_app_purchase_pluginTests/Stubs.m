@@ -130,6 +130,10 @@
   return [[SKProductRequestStub alloc] initWithProductIdentifiers:identifiers];
 }
 
+- (SKProduct *)getProduct:(NSString *)productID {
+  return [SKProduct new];
+}
+
 @end
 
 @interface SKPaymentQueueStub ()
@@ -148,6 +152,10 @@
   SKPaymentTransactionStub *transaction =
       [[SKPaymentTransactionStub alloc] initWithState:self.testState];
   [self.observer paymentQueue:self updatedTransactions:@[ transaction ]];
+}
+
+- (void)restoreCompletedTransactions {
+  [self.observer paymentQueueRestoreCompletedTransactionsFinished:self];
 }
 
 @end
