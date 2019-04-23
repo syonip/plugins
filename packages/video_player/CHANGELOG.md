@@ -1,3 +1,7 @@
+## 0.10.0+8 
+
+* Implemented playback speed feature.
+
 ## 0.10.0+7
 
 * iOS: fixed some videos being rendered black
