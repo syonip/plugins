@@ -1,10 +1,14 @@
-## 0.10.0+10 
+## 0.10.1+2
 
 * Implemented playback speed feature.
 
-## 0.10.0+9
+## 0.10.1+1
 
 * iOS: fixed some videos being rendered black
+
+## 0.10.1
+
+* iOS: Consider a player only `initialized` once duration is determined.
 
 ## 0.10.0+8
 
