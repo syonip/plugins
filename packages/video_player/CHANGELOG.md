@@ -1,10 +1,14 @@
-## 0.10.1+2
+## 0.10.1+3
 
 * Implemented playback speed feature.
 
-## 0.10.1+1
+## 0.10.1+2
 
 * iOS: fixed some videos being rendered black
+
+## 0.10.1+1
+
+* iOS: Avoid deprecated `seekToTime` API
 
 ## 0.10.1
 
