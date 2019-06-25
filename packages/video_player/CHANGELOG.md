@@ -5,7 +5,7 @@
 
 ## 0.10.1+6
 
-* Android: Upgrade ExoPlayer to 2.10.1.
+* Android: Upgrade ExoPlayer to 2.10.2.
 
 ## 0.10.1+5
 
