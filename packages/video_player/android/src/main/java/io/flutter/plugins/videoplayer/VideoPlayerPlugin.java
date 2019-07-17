@@ -21,6 +21,7 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioAttributes;
+import com.google.android.exoplayer2.database.ExoDatabaseProvider;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
@@ -33,8 +34,8 @@ import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
+import com.google.android.exoplayer2.upstream.cache.LeastRecentlyUsedCacheEvictor;
+import com.google.android.exoplayer2.upstream.cache.SimpleCache;
 import com.google.android.exoplayer2.util.Util;
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
@@ -45,6 +46,7 @@ import io.flutter.plugin.common.PluginRegistry;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
 import io.flutter.view.FlutterNativeView;
 import io.flutter.view.TextureRegistry;
+import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -72,6 +74,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         EventChannel eventChannel,
         TextureRegistry.SurfaceTextureEntry textureEntry,
         String dataSource,
+        SimpleCache simpleCache,
         Result result) {
       this.eventChannel = eventChannel;
       this.textureEntry = textureEntry;
@@ -86,12 +89,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         dataSourceFactory = new DefaultDataSourceFactory(context, "ExoPlayer");
       } else {
         dataSourceFactory =
-            new DefaultHttpDataSourceFactory(
-                "ExoPlayer",
-                null,
-                DefaultHttpDataSource.DEFAULT_CONNECT_TIMEOUT_MILLIS,
-                DefaultHttpDataSource.DEFAULT_READ_TIMEOUT_MILLIS,
-                true);
+            new CacheDataSourceFactory(context, simpleCache, CacheDataSourceFactory.MAX_FILE_SIZE);
       }
 
       MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, context);
@@ -298,11 +296,21 @@ public class VideoPlayerPlugin implements MethodCallHandler {
   private VideoPlayerPlugin(Registrar registrar) {
     this.registrar = registrar;
     this.videoPlayers = new LongSparseArray<>();
+
+    LeastRecentlyUsedCacheEvictor evictor =
+        new LeastRecentlyUsedCacheEvictor(CacheDataSourceFactory.MAX_CACHE_SIZE);
+    this.simpleCache =
+        new SimpleCache(
+            new File(registrar.context().getCacheDir(), "danztmp"),
+            evictor,
+            new ExoDatabaseProvider(registrar.context()));
   }
 
   private final LongSparseArray<VideoPlayer> videoPlayers;
 
   private final Registrar registrar;
+
+  private final SimpleCache simpleCache;
 
   private void disposeAllPlayers() {
     for (int i = 0; i < videoPlayers.size(); i++) {
@@ -352,12 +360,18 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                     eventChannel,
                     handle,
                     "asset:///" + assetLookupKey,
+                    simpleCache,
                     result);
             videoPlayers.put(handle.id(), player);
           } else {
             player =
                 new VideoPlayer(
-                    registrar.context(), eventChannel, handle, call.argument("uri"), result);
+                    registrar.context(),
+                    eventChannel,
+                    handle,
+                    call.argument("uri"),
+                    simpleCache,
+                    result);
             videoPlayers.put(handle.id(), player);
           }
           break;
