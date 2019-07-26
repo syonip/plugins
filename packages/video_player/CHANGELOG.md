@@ -3,17 +3,21 @@
 * **Breaking change**. Android: gain audio focus when playing a video. Stop mixing audio from 
   3rd party video/music players when a video is played.
 
-## 0.10.1+7
+## 0.10.1+8
 
 * Android: Upgrade ExoPlayer to 2.10.2.
 
-## 0.10.1+6
+## 0.10.1+7
 
 * Implemented playback speed feature.
 
-## 0.10.1+5
+## 0.10.1+6
 
 * iOS: fixed some videos being rendered black
+
+## 0.10.1+5
+
+* Fix race condition while disposing the VideoController.
 
 ## 0.10.1+4
 
