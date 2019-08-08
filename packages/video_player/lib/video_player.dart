@@ -5,13 +5,13 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:meta/meta.dart';
 
 final MethodChannel _channel = const MethodChannel('flutter.io/videoPlayer')
-  // This will clear all open videos on the platform when a full restart is
-  // performed.
+// This will clear all open videos on the platform when a full restart is
+// performed.
   ..invokeMethod<void>('init');
 
 class DurationRange {
@@ -261,6 +261,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           _applyLooping();
           _applyVolume();
           _applyPlayPause();
+          _applySpeed();
           break;
         case 'completed':
           value = value.copyWith(isPlaying: false, position: value.duration);
@@ -365,7 +366,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       );
 
       // Ensure the video is played at the correct speed
-      await _applyPlayBackSpeed();
+      await _applySpeed();
     } else {
       _timer?.cancel();
       await _channel.invokeMethod<void>(
@@ -423,20 +424,21 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     await _applyVolume();
   }
 
-  Future<void> _applyPlayBackSpeed() async {
+  Future<void> _applySpeed() async {
     if (!value.initialized || _isDisposed) {
       return;
     }
 
-    // On iOS setting the speed will start playing the video automatically
-    // Do not change the video speed until after the video is played
+    // On iOS setting the speed on an AVPlayer starts playing
+    // the video straightaway. We avoid this surprising behaviour
+    // by not changing the speed of the player until after the video
+    // starts playing
     if (!value.isPlaying) {
       return;
     }
 
-    // ignore: strong_mode_implicit_dynamic_method
-    await _channel.invokeMethod(
-      'setPlayBackSpeed',
+    await _channel.invokeMethod<void>(
+      'setSpeed',
       <String, dynamic>{'textureId': _textureId, 'speed': value.speed},
     );
   }
@@ -445,9 +447,12 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   ///
   /// [speed] can be 0.5x, 1x, 2x
   /// by default speed value is 1.0
+  ///
+  /// Negative speeds are not supported
+  /// speeds above 2x are not supported on iOS
   Future<void> setSpeed(double speed) async {
     value = value.copyWith(speed: speed);
-    await _applyPlayBackSpeed();
+    await _applySpeed();
   }
 }
 
