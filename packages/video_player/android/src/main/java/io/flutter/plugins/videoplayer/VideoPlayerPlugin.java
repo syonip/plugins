@@ -21,7 +21,6 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioAttributes;
-import com.google.android.exoplayer2.database.ExoDatabaseProvider;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
@@ -34,7 +33,6 @@ import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
-import com.google.android.exoplayer2.upstream.cache.LeastRecentlyUsedCacheEvictor;
 import com.google.android.exoplayer2.upstream.cache.SimpleCache;
 import com.google.android.exoplayer2.util.Util;
 import io.flutter.plugin.common.EventChannel;
@@ -296,14 +294,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
   private VideoPlayerPlugin(Registrar registrar) {
     this.registrar = registrar;
     this.videoPlayers = new LongSparseArray<>();
-
-    LeastRecentlyUsedCacheEvictor evictor =
-        new LeastRecentlyUsedCacheEvictor(CacheDataSourceFactory.MAX_CACHE_SIZE);
-    this.simpleCache =
-        new SimpleCache(
-            new File(registrar.context().getCacheDir(), "danztmp"),
-            evictor,
-            new ExoDatabaseProvider(registrar.context()));
+    File cacheDirectory = new File(registrar.context().getCacheDir(), "danztmp");
+    this.simpleCache = SimpleCacheHelper.getInstance(cacheDirectory, registrar.context());
   }
 
   private final LongSparseArray<VideoPlayer> videoPlayers;
@@ -325,6 +317,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
     // be replaced with just asserting that videoPlayers.isEmpty().
     // https://github.com/flutter/flutter/issues/20989 tracks this.
     disposeAllPlayers();
+    // simpleCache.release();
   }
 
   @Override
