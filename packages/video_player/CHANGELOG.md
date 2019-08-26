@@ -1,22 +1,30 @@
-<<<<<<< HEAD
 ## 0.11.0
 
 * **Breaking change**. Android: gain audio focus when playing a video. Stop mixing audio from 
   3rd party video/music players when a video is played.
 
-## 0.10.1+11
+## 0.10.2+11
 
-* Android: Upgrade ExoPlayer to 2.10.2.
+* Android: Upgrade ExoPlayer to 2.10.4.
 
-## 0.10.1+10
 
-* iOS: fixed some videos being rendered black
-
-## 0.10.1+7
+## 0.10.2+2
 
 * Implemented playback speed feature.
 * Bump the minimum Flutter version to 1.2.0.
 * Add template type parameter to `invokeMethod` calls.
+
+## 0.10.2+1
+
+* iOS: fixed some videos being rendered black
+
+## 0.10.2
+
+* **Android Only** Adds optional VideoFormat used to signal what format the plugin should try.
+
+## 0.10.1+7
+
+* Fix tests by ignoring deprecated member use.
 
 ## 0.10.1+6
 

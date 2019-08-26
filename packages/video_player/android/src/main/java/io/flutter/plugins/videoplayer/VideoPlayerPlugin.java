@@ -55,6 +55,10 @@ import java.util.Map;
 public class VideoPlayerPlugin implements MethodCallHandler {
 
   private static class VideoPlayer {
+    private static final String FORMAT_SS = "ss";
+    private static final String FORMAT_DASH = "dash";
+    private static final String FORMAT_HLS = "hls";
+    private static final String FORMAT_OTHER = "other";
 
     private SimpleExoPlayer exoPlayer;
     private final String dataSource;
@@ -76,7 +80,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         TextureRegistry.SurfaceTextureEntry textureEntry,
         String dataSource,
         SimpleCache simpleCache,
-        Result result) {
+        Result result,
+        String formatHint) {
       this.eventChannel = eventChannel;
       this.textureEntry = textureEntry;
 
@@ -94,7 +99,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             new CacheDataSourceFactory(context, simpleCache, CacheDataSourceFactory.MAX_FILE_SIZE);
       }
 
-      MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, context);
+      MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, context);
       exoPlayer.prepare(mediaSource);
 
       setupVideoPlayer(eventChannel, textureEntry, result);
@@ -109,8 +114,29 @@ public class VideoPlayerPlugin implements MethodCallHandler {
     }
 
     private MediaSource buildMediaSource(
-        Uri uri, DataSource.Factory mediaDataSourceFactory, Context context) {
-      int type = Util.inferContentType(uri.getLastPathSegment());
+        Uri uri, DataSource.Factory mediaDataSourceFactory, String formatHint, Context context) {
+      int type;
+      if (formatHint == null) {
+        type = Util.inferContentType(uri.getLastPathSegment());
+      } else {
+        switch (formatHint) {
+          case FORMAT_SS:
+            type = C.TYPE_SS;
+            break;
+          case FORMAT_DASH:
+            type = C.TYPE_DASH;
+            break;
+          case FORMAT_HLS:
+            type = C.TYPE_HLS;
+            break;
+          case FORMAT_OTHER:
+            type = C.TYPE_OTHER;
+            break;
+          default:
+            type = -1;
+            break;
+        }
+      }
       switch (type) {
         case C.TYPE_SS:
           return new SsMediaSource.Factory(
@@ -294,7 +320,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
 
       startPositionMs = startMs;
       MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, context);
-      exoPlayer.prepare(new ClippingMediaSource(mediaSource, 1000 * startPositionMs, 1000L * endMs));
+      exoPlayer.prepare(
+          new ClippingMediaSource(mediaSource, 1000 * startPositionMs, 1000L * endMs));
       result.success(null);
     }
   }
@@ -335,7 +362,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
   }
 
   private void onDestroy() {
-    // The whole FlutterView is being destroyed. Here we release resources acquired for all instances
+    // The whole FlutterView is being destroyed. Here we release resources acquired for all
+    // instances
     // of VideoPlayer. Once https://github.com/flutter/flutter/issues/19358 is resolved this may
     // be replaced with just asserting that videoPlayers.isEmpty().
     // https://github.com/flutter/flutter/issues/20989 tracks this.
@@ -377,7 +405,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                     handle,
                     "asset:///" + assetLookupKey,
                     simpleCache,
-                    result);
+                    result,
+                    null);
             videoPlayers.put(handle.id(), player);
           } else {
             player =
@@ -387,7 +416,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                     handle,
                     call.argument("uri"),
                     simpleCache,
-                    result);
+                    result,
+                    call.argument("formatHint"));
             videoPlayers.put(handle.id(), player);
           }
           break;
