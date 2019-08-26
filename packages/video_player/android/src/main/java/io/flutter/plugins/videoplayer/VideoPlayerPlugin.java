@@ -319,7 +319,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
       }
 
       startPositionMs = startMs;
-      MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, context);
+      MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, null, context);
       exoPlayer.prepare(
           new ClippingMediaSource(mediaSource, 1000 * startPositionMs, 1000L * endMs));
       result.success(null);
