@@ -195,6 +195,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
             : 'file://$fileIdentifier',
         dataSourceType = DataSourceType.file,
         package = null,
+        formatHint = null,
         super(VideoPlayerValue(duration: null));
 
   int _textureId;
