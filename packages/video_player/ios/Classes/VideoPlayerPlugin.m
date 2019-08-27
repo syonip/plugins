@@ -376,13 +376,9 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 
 - (void)seekTo:(int)location {
   CMTime disiredPosition = CMTimeMake(location, 1000);
-  NSLog(@"disiredPosition %f", CMTimeGetSeconds(disiredPosition));
-  NSLog(@"_startPosition %f", CMTimeGetSeconds(_startPosition));
   CMTime computedPosition = CMTimeSubtract(_startPosition, disiredPosition);
-  NSLog(@"Computed Position A %f", CMTimeGetSeconds(computedPosition));
   computedPosition =
       CMTimeClampToRange(computedPosition, CMTimeRangeMake(kCMTimeZero, kCMTimePositiveInfinity));
-  NSLog(@"Computed Position B %f", CMTimeGetSeconds(computedPosition));
   [_player seekToTime:computedPosition toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
 }
 
@@ -478,9 +474,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                                error:&error];
     }
 
-    NSLog(@"Completed Mutable Track %@", error);
     if (!error) {
-      NSLog(@"Setting video player");
       AVPlayerItem* newItem = [[AVPlayerItem alloc] initWithAsset:mutableComposition];
 
       if (videoComposition) {
