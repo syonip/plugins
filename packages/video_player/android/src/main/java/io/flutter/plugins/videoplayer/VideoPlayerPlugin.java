@@ -218,7 +218,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
     private void sendBufferingUpdate() {
       Map<String, Object> event = new HashMap<>();
       event.put("event", "bufferingUpdate");
-      List<? extends Number> range = Arrays.asList(0, exoPlayer.getBufferedPosition());
+      List<? extends Number> range =
+          Arrays.asList(0, startPositionMs + exoPlayer.getBufferedPosition());
       // iOS supports a list of buffered ranges, so here is a list with a single range.
       event.put("values", Collections.singletonList(range));
       eventSink.success(event);
