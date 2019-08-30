@@ -7,6 +7,47 @@
 #import <GLKit/GLKit.h>
 
 #import <Photos/Photos.h>
+#import "VIMediaCache.h"
+
+@interface VIMediaCacheSingleton : NSObject {
+  VIResourceLoaderManager* resourceLoaderManager;
+}
+
+@property(nonatomic, retain) VIResourceLoaderManager* resourceLoaderManager;
+
++ (id)sharedVIMediaCache;
+
+@end
+
+@implementation VIMediaCacheSingleton
+
+@synthesize resourceLoaderManager;
+
+#pragma mark Singleton Methods
+
++ (id)sharedVIMediaCache {
+  static VIResourceLoaderManager* shared = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    shared = [[self alloc] init];
+  });
+  return shared;
+}
+
+- (id)init {
+  if (self = [super init]) {
+    resourceLoaderManager = [VIResourceLoaderManager new];
+  }
+  return self;
+}
+
+- (void)dealloc {
+  // Should never be called, but just here for clarity really.
+}
+
+@end
+
+#pragma mark FLTFrameUpdater
 
 int64_t FLTCMTimeToMillis(CMTime time) {
   if (time.timescale == 0) return 0;
@@ -31,6 +72,8 @@ int64_t FLTCMTimeToMillis(CMTime time) {
   [_registry textureFrameAvailable:_textureId];
 }
 @end
+
+#pragma mark FLTVideoPlayer
 
 @interface FLTVideoPlayer : NSObject <FlutterTexture, FlutterStreamHandler>
 @property(readonly, nonatomic) AVPlayer* player;
@@ -59,6 +102,7 @@ static void* playbackBufferEmptyContext = &playbackBufferEmptyContext;
 static void* playbackBufferFullContext = &playbackBufferFullContext;
 
 @implementation FLTVideoPlayer
+
 - (instancetype)initWithAsset:(NSString*)asset frameUpdater:(FLTFrameUpdater*)frameUpdater {
   NSString* path = [[NSBundle mainBundle] pathForResource:asset ofType:nil];
   return [self initWithURL:[NSURL fileURLWithPath:path] frameUpdater:frameUpdater];
@@ -186,7 +230,8 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 }
 
 - (instancetype)initWithURL:(NSURL*)url frameUpdater:(FLTFrameUpdater*)frameUpdater {
-  AVPlayerItem* item = [AVPlayerItem playerItemWithURL:url];
+  VIMediaCacheSingleton* shared = [VIMediaCacheSingleton sharedVIMediaCache];
+  AVPlayerItem* item = [shared.resourceLoaderManager playerItemWithURL:url];
   return [self initWithPlayerItem:item frameUpdater:frameUpdater];
 }
 
