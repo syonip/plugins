@@ -421,9 +421,12 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 
 - (void)seekTo:(int)location {
   CMTime disiredPosition = CMTimeMake(location, 1000);
-  CMTime computedPosition = CMTimeSubtract(_startPosition, disiredPosition);
+  CMTime computedPosition = CMTimeSubtract(disiredPosition, _startPosition);
+  // NSLog(@"Computed positon: %f : %f", CMTimeGetSeconds(computedPosition),
+  // CMTimeGetSeconds(disiredPosition));
   computedPosition =
       CMTimeClampToRange(computedPosition, CMTimeRangeMake(kCMTimeZero, kCMTimePositiveInfinity));
+  // NSLog(@"Computed positon (2): %f", CMTimeGetSeconds(computedPosition));
   [_player seekToTime:computedPosition toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
 }
 
