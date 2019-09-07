@@ -22,6 +22,7 @@ import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
+import com.google.android.exoplayer2.source.ClippingMediaSource;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
@@ -60,6 +61,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
     private static final String FORMAT_OTHER = "other";
 
     private SimpleExoPlayer exoPlayer;
+    private final String dataSource;
 
     private Surface surface;
 
@@ -70,6 +72,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
     private final EventChannel eventChannel;
 
     private boolean isInitialized = false;
+    private long startPositionMs = 0;
 
     VideoPlayer(
         Context context,
@@ -85,6 +88,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
       TrackSelector trackSelector = new DefaultTrackSelector();
       exoPlayer = ExoPlayerFactory.newSimpleInstance(context, trackSelector);
 
+      this.dataSource = dataSource;
       Uri uri = Uri.parse(dataSource);
 
       DataSource.Factory dataSourceFactory;
@@ -214,7 +218,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
     private void sendBufferingUpdate() {
       Map<String, Object> event = new HashMap<>();
       event.put("event", "bufferingUpdate");
-      List<? extends Number> range = Arrays.asList(0, exoPlayer.getBufferedPosition());
+      List<? extends Number> range =
+          Arrays.asList(0, startPositionMs + exoPlayer.getBufferedPosition());
       // iOS supports a list of buffered ranges, so here is a list with a single range.
       event.put("values", Collections.singletonList(range));
       eventSink.success(event);
@@ -248,11 +253,12 @@ public class VideoPlayerPlugin implements MethodCallHandler {
     }
 
     void seekTo(int location) {
-      exoPlayer.seekTo(location);
+      long seekToMs = Math.max(0, location - startPositionMs);
+      exoPlayer.seekTo(seekToMs);
     }
 
     long getPosition() {
-      return exoPlayer.getCurrentPosition();
+      return startPositionMs + exoPlayer.getCurrentPosition();
     }
 
     void setSpeed(double value) {
@@ -299,6 +305,25 @@ public class VideoPlayerPlugin implements MethodCallHandler {
       if (exoPlayer != null) {
         exoPlayer.release();
       }
+    }
+
+    public void clip(Context context, long startMs, long endMs, Result result) {
+      Uri uri = Uri.parse(dataSource);
+
+      DataSource.Factory dataSourceFactory;
+      if (!isHTTP(uri)) {
+        dataSourceFactory = new DefaultDataSourceFactory(context, "ExoPlayer");
+      } else {
+        result.error(
+            "invalid_datasource", "clipping a video is not supported for http(s) videos", null);
+        return;
+      }
+
+      startPositionMs = startMs;
+      MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, null, context);
+      exoPlayer.prepare(
+          new ClippingMediaSource(mediaSource, 1000 * startPositionMs, 1000L * endMs));
+      result.success(null);
     }
   }
 
@@ -450,6 +475,13 @@ public class VideoPlayerPlugin implements MethodCallHandler {
       case "setSpeed":
         player.setSpeed((Double) call.argument("speed"));
         result.success(null);
+        break;
+      case "clip":
+        player.clip(
+            registrar.context(),
+            (Integer) call.argument("startMs"),
+            (Integer) call.argument("endMs"),
+            result);
         break;
       default:
         result.notImplemented();

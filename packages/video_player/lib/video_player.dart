@@ -41,6 +41,8 @@ class VideoPlayerValue {
     @required this.duration,
     this.size,
     this.position = const Duration(),
+    this.startPosition = const Duration(),
+    this.endPosition = const Duration(),
     this.buffered = const <DurationRange>[],
     this.isPlaying = false,
     this.isLooping = false,
@@ -59,6 +61,16 @@ class VideoPlayerValue {
   ///
   /// Is null when [initialized] is false.
   final Duration duration;
+
+  /// The start position when clipped.
+  ///
+  /// Is null when [initialized] is false.
+  final Duration startPosition;
+
+  /// The total duration of the video or a smaller value when clipped.
+  ///
+  /// Is null when [initialized] is false.
+  final Duration endPosition;
 
   /// The current playback position.
   final Duration position;
@@ -101,6 +113,8 @@ class VideoPlayerValue {
     Duration duration,
     Size size,
     Duration position,
+    Duration startPosition,
+    Duration endPosition,
     List<DurationRange> buffered,
     bool isPlaying,
     bool isLooping,
@@ -113,6 +127,8 @@ class VideoPlayerValue {
       duration: duration ?? this.duration,
       size: size ?? this.size,
       position: position ?? this.position,
+      startPosition: startPosition ?? this.startPosition,
+      endPosition: endPosition ?? this.endPosition,
       buffered: buffered ?? this.buffered,
       isPlaying: isPlaying ?? this.isPlaying,
       isLooping: isLooping ?? this.isLooping,
@@ -216,6 +232,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   @visibleForTesting
   int get textureId => _textureId;
 
+  bool get isDisposed => _isDisposed;
+
   Future<void> initialize() async {
     _lifeCycleObserver = _VideoAppLifeCycleObserver(this);
     _lifeCycleObserver.initialize();
@@ -264,6 +282,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         case 'initialized':
           value = value.copyWith(
             duration: Duration(milliseconds: map['duration']),
+            endPosition: Duration(milliseconds: map['duration']),
             size: Size(map['width']?.toDouble() ?? 0.0,
                 map['height']?.toDouble() ?? 0.0),
           );
@@ -274,7 +293,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           _applySpeed();
           break;
         case 'completed':
-          value = value.copyWith(isPlaying: false, position: value.duration);
+          value = value.copyWith(isPlaying: false, position: value.endPosition);
           _timer?.cancel();
           break;
         case 'bufferingUpdate':
@@ -413,10 +432,10 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (_isDisposed) {
       return;
     }
-    if (moment > value.duration) {
-      moment = value.duration;
-    } else if (moment < const Duration()) {
-      moment = const Duration();
+    if (moment > value.endPosition) {
+      moment = value.endPosition;
+    } else if (moment < value.startPosition) {
+      moment = value.startPosition;
     }
     await _channel.invokeMethod<void>('seekTo', <String, dynamic>{
       'textureId': _textureId,
@@ -463,6 +482,29 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Future<void> setSpeed(double speed) async {
     value = value.copyWith(speed: speed);
     await _applySpeed();
+  }
+
+  /// Sets the playback speed of [this].
+  ///
+  /// [speed] can be 0.5x, 1x, 2x
+  /// by default speed value is 1.0
+  ///
+  /// Negative speeds are not supported
+  /// speeds above 2x are not supported on iOS
+  Future<void> clip(int startMs, int endMs) async {
+    value = value.copyWith(
+      isPlaying: false,
+      startPosition: Duration(milliseconds: startMs),
+      endPosition: Duration(milliseconds: endMs),
+    );
+    await _channel.invokeMethod<void>(
+      'clip',
+      <String, dynamic>{
+        'textureId': _textureId,
+        'startMs': startMs,
+        'endMs': endMs,
+      },
+    );
   }
 
   static const Map<VideoFormat, String> _videoFormatStringMap =
@@ -542,7 +584,9 @@ class _VideoPlayerState extends State<VideoPlayer> {
   @override
   void didUpdateWidget(VideoPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    oldWidget.controller.removeListener(_listener);
+    if (!oldWidget.controller._isDisposed) {
+      oldWidget.controller.removeListener(_listener);
+    }
     _textureId = widget.controller.textureId;
     widget.controller.addListener(_listener);
   }
@@ -550,7 +594,9 @@ class _VideoPlayerState extends State<VideoPlayer> {
   @override
   void deactivate() {
     super.deactivate();
-    widget.controller.removeListener(_listener);
+    if (!widget.controller._isDisposed) {
+      widget.controller.removeListener(_listener);
+    }
   }
 
   @override

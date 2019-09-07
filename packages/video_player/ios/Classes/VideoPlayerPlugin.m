@@ -7,6 +7,47 @@
 #import <GLKit/GLKit.h>
 
 #import <Photos/Photos.h>
+#import "VIMediaCache.h"
+
+@interface VIMediaCacheSingleton : NSObject {
+  VIResourceLoaderManager* resourceLoaderManager;
+}
+
+@property(nonatomic, retain) VIResourceLoaderManager* resourceLoaderManager;
+
++ (id)sharedVIMediaCache;
+
+@end
+
+@implementation VIMediaCacheSingleton
+
+@synthesize resourceLoaderManager;
+
+#pragma mark Singleton Methods
+
++ (id)sharedVIMediaCache {
+  static VIResourceLoaderManager* shared = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    shared = [[self alloc] init];
+  });
+  return shared;
+}
+
+- (id)init {
+  if (self = [super init]) {
+    resourceLoaderManager = [VIResourceLoaderManager new];
+  }
+  return self;
+}
+
+- (void)dealloc {
+  // Should never be called, but just here for clarity really.
+}
+
+@end
+
+#pragma mark FLTFrameUpdater
 
 int64_t FLTCMTimeToMillis(CMTime time) {
   if (time.timescale == 0) return 0;
@@ -32,8 +73,11 @@ int64_t FLTCMTimeToMillis(CMTime time) {
 }
 @end
 
+#pragma mark FLTVideoPlayer
+
 @interface FLTVideoPlayer : NSObject <FlutterTexture, FlutterStreamHandler>
 @property(readonly, nonatomic) AVPlayer* player;
+@property(nonatomic) AVAsset* fullAsset;
 @property(readonly, nonatomic) AVPlayerItemVideoOutput* videoOutput;
 @property(readonly, nonatomic) CADisplayLink* displayLink;
 @property(nonatomic) FlutterEventChannel* eventChannel;
@@ -43,6 +87,7 @@ int64_t FLTCMTimeToMillis(CMTime time) {
 @property(nonatomic, readonly) bool isPlaying;
 @property(nonatomic) bool isLooping;
 @property(nonatomic, readonly) bool isInitialized;
+@property(nonatomic) CMTime startPosition;
 - (instancetype)initWithURL:(NSURL*)url frameUpdater:(FLTFrameUpdater*)frameUpdater;
 - (void)play;
 - (void)pause;
@@ -57,6 +102,7 @@ static void* playbackBufferEmptyContext = &playbackBufferEmptyContext;
 static void* playbackBufferFullContext = &playbackBufferFullContext;
 
 @implementation FLTVideoPlayer
+
 - (instancetype)initWithAsset:(NSString*)asset frameUpdater:(FLTFrameUpdater*)frameUpdater {
   NSString* path = [[NSBundle mainBundle] pathForResource:asset ofType:nil];
   return [self initWithURL:[NSURL fileURLWithPath:path] frameUpdater:frameUpdater];
@@ -137,11 +183,12 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 };
 
 - (AVMutableVideoComposition*)getVideoCompositionWithTransform:(CGAffineTransform)transform
-                                                     withAsset:(AVAsset*)asset
+                                                 withTimeRange:(CMTimeRange)timeRange
                                                 withVideoTrack:(AVAssetTrack*)videoTrack {
   AVMutableVideoCompositionInstruction* instruction =
       [AVMutableVideoCompositionInstruction videoCompositionInstruction];
-  instruction.timeRange = CMTimeRangeMake(kCMTimeZero, [asset duration]);
+  instruction.timeRange = timeRange;
+
   AVMutableVideoCompositionLayerInstruction* layerInstruction =
       [AVMutableVideoCompositionLayerInstruction
           videoCompositionLayerInstructionWithAssetTrack:videoTrack];
@@ -183,7 +230,8 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 }
 
 - (instancetype)initWithURL:(NSURL*)url frameUpdater:(FLTFrameUpdater*)frameUpdater {
-  AVPlayerItem* item = [AVPlayerItem playerItemWithURL:url];
+  VIMediaCacheSingleton* shared = [VIMediaCacheSingleton sharedVIMediaCache];
+  AVPlayerItem* item = [shared.resourceLoaderManager playerItemWithURL:url];
   return [self initWithPlayerItem:item frameUpdater:frameUpdater];
 }
 
@@ -227,6 +275,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         AVAssetTrack* videoTrack = tracks[0];
         void (^trackCompletionHandler)(void) = ^{
           if (self->_disposed) return;
+          self.fullAsset = asset;
           if ([videoTrack statusOfValueForKey:@"preferredTransform"
                                         error:nil] == AVKeyValueStatusLoaded) {
             // Rotate the video by using a videoComposition and the preferredTransform
@@ -235,9 +284,10 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
             // https://developer.apple.com/documentation/avfoundation/avplayeritem/1388818-videocomposition
             // Video composition can only be used with file-based media and is not supported for
             // use with media served using HTTP Live Streaming.
+            CMTimeRange timeRange = CMTimeRangeMake(kCMTimeZero, [asset duration]);
             AVMutableVideoComposition* videoComposition =
                 [self getVideoCompositionWithTransform:self->_preferredTransform
-                                             withAsset:asset
+                                         withTimeRange:timeRange
                                         withVideoTrack:videoTrack];
             item.videoComposition = videoComposition;
           }
@@ -250,6 +300,8 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 
   _player = [AVPlayer playerWithPlayerItem:item];
   _player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
+
+  _startPosition = kCMTimeZero;
 
   [self createVideoOutputAndDisplayLink:frameUpdater];
 
@@ -269,7 +321,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
       NSMutableArray<NSArray<NSNumber*>*>* values = [[NSMutableArray alloc] init];
       for (NSValue* rangeValue in [object loadedTimeRanges]) {
         CMTimeRange range = [rangeValue CMTimeRangeValue];
-        int64_t start = FLTCMTimeToMillis(range.start);
+        int64_t start = FLTCMTimeToMillis(range.start) + FLTCMTimeToMillis(_startPosition);
         [values addObject:@[ @(start), @(start + FLTCMTimeToMillis(range.duration)) ]];
       }
       _eventSink(@{@"event" : @"bufferingUpdate", @"values" : values});
@@ -360,17 +412,22 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 }
 
 - (int64_t)position {
-  return FLTCMTimeToMillis([_player currentTime]);
+  return FLTCMTimeToMillis([_player currentTime]) + FLTCMTimeToMillis(_startPosition);
 }
 
 - (int64_t)duration {
-  return FLTCMTimeToMillis([[_player currentItem] duration]);
+  return FLTCMTimeToMillis([_fullAsset duration]);
 }
 
 - (void)seekTo:(int)location {
-  [_player seekToTime:CMTimeMake(location, 1000)
-      toleranceBefore:kCMTimeZero
-       toleranceAfter:kCMTimeZero];
+  CMTime disiredPosition = CMTimeMake(location, 1000);
+  CMTime computedPosition = CMTimeSubtract(disiredPosition, _startPosition);
+  // NSLog(@"Computed positon: %f : %f", CMTimeGetSeconds(computedPosition),
+  // CMTimeGetSeconds(disiredPosition));
+  computedPosition =
+      CMTimeClampToRange(computedPosition, CMTimeRangeMake(kCMTimeZero, kCMTimePositiveInfinity));
+  // NSLog(@"Computed positon (2): %f", CMTimeGetSeconds(computedPosition));
+  [_player seekToTime:computedPosition toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
 }
 
 - (void)setIsLooping:(bool)isLooping {
@@ -406,6 +463,84 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   }
 }
 
+- (void)clip:(int)startMs endMs:(int)endMs result:(FlutterResult)result {
+  if (self->_disposed) {
+    result(nil);
+    return;
+  }
+
+  CMTime videoDuration = _fullAsset.duration;
+  if (CMTIME_IS_INDEFINITE(videoDuration)) {
+    result([FlutterError errorWithCode:@"video_not_ready"
+                               message:@"Do not call clip until the video is ready to play"
+                               details:nil]);
+  } else if (self.fullAsset == nil) {
+    result([FlutterError errorWithCode:@"video_asset_not_ready"
+                               message:@"Do not call clip until the video is ready to play"
+                               details:nil]);
+  } else if (startMs < 0 || endMs <= startMs || endMs > 1000 * CMTimeGetSeconds(videoDuration)) {
+    result([FlutterError errorWithCode:@"unsupported_clip_parameters"
+                               message:@"startMs must be >= 0.0 and < endMs and endMs <= duration"
+                               details:nil]);
+  } else {
+    [self removeAvPlayerObservers];
+
+    CMTime start = CMTimeMake(startMs, 1000);
+    _startPosition = start;
+    CMTime duration = CMTimeMake(endMs - startMs, 1000);
+
+    NSError* error = nil;
+    AVMutableVideoComposition* videoComposition = nil;
+    AVMutableComposition* mutableComposition = [AVMutableComposition composition];
+    if ([[self.fullAsset tracksWithMediaType:AVMediaTypeVideo] count] != 0) {
+      AVAssetTrack* videoTrack =
+          [[self.fullAsset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0];
+
+      AVMutableCompositionTrack* videoComTrack =
+          [mutableComposition addMutableTrackWithMediaType:AVMediaTypeVideo
+                                          preferredTrackID:kCMPersistentTrackID_Invalid];
+      [videoComTrack insertTimeRange:CMTimeRangeMake(start, duration)
+                             ofTrack:videoTrack
+                              atTime:kCMTimeZero
+                               error:&error];
+
+      videoComposition =
+          [self getVideoCompositionWithTransform:self->_preferredTransform
+                                   withTimeRange:CMTimeRangeMake(kCMTimeZero, duration)
+                                  withVideoTrack:videoTrack];
+    }
+    if ([[self.fullAsset tracksWithMediaType:AVMediaTypeAudio] count] != 0) {
+      AVAssetTrack* audioTrack =
+          [[self.fullAsset tracksWithMediaType:AVMediaTypeAudio] objectAtIndex:0];
+
+      AVMutableCompositionTrack* audioComTrack =
+          [mutableComposition addMutableTrackWithMediaType:AVMediaTypeAudio
+                                          preferredTrackID:kCMPersistentTrackID_Invalid];
+      [audioComTrack insertTimeRange:CMTimeRangeMake(start, duration)
+                             ofTrack:audioTrack
+                              atTime:kCMTimeZero
+                               error:&error];
+    }
+
+    if (!error) {
+      AVPlayerItem* newItem = [[AVPlayerItem alloc] initWithAsset:mutableComposition];
+
+      if (videoComposition) {
+        newItem.videoComposition = videoComposition;
+      }
+
+      [self->_player replaceCurrentItemWithPlayerItem:newItem];
+      [self addObservers:newItem];
+      result(nil);
+    } else {
+      result([FlutterError
+          errorWithCode:@"clip_error"
+                message:@"Could not clip video from \(start) with duration \(duration)"
+                details:error]);
+    }
+  }
+}
+
 - (CVPixelBufferRef)copyPixelBuffer {
   CMTime outputItemTime = [_videoOutput itemTimeForHostTime:CACurrentMediaTime()];
   if ([_videoOutput hasNewPixelBufferForItemTime:outputItemTime]) {
@@ -432,9 +567,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   return nil;
 }
 
-- (void)dispose {
-  _disposed = true;
-  [_displayLink invalidate];
+- (void)removeAvPlayerObservers {
   [[_player currentItem] removeObserver:self forKeyPath:@"status" context:statusContext];
   [[_player currentItem] removeObserver:self
                              forKeyPath:@"loadedTimeRanges"
@@ -450,6 +583,12 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                                 context:playbackBufferFullContext];
   [_player replaceCurrentItemWithPlayerItem:nil];
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)dispose {
+  _disposed = true;
+  [_displayLink invalidate];
+  [self removeAvPlayerObservers];
   [_eventChannel setStreamHandler:nil];
 }
 
@@ -574,6 +713,11 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
       result(nil);
     } else if ([@"setSpeed" isEqualToString:call.method]) {
       [player setSpeed:[[argsMap objectForKey:@"speed"] doubleValue] result:result];
+      return;
+    } else if ([@"clip" isEqualToString:call.method]) {
+      [player clip:[[argsMap objectForKey:@"startMs"] intValue]
+             endMs:[[argsMap objectForKey:@"endMs"] intValue]
+            result:result];
       return;
     } else {
       result(FlutterMethodNotImplemented);
