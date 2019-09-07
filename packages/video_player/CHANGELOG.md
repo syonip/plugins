@@ -7,16 +7,20 @@
 
 * Android: Upgrade ExoPlayer to 2.10.4.
 
-
-## 0.10.2+2
+## 0.10.2+10
 
 * Implemented playback speed feature.
 * Bump the minimum Flutter version to 1.2.0.
 * Add template type parameter to `invokeMethod` calls.
 
-## 0.10.2+1
+## 0.10.2+2
 
 * iOS: fixed some videos being rendered black
+
+## 0.10.2+1
+
+* Use DefaultHttpDataSourceFactory only when network schemas and use
+DefaultHttpDataSourceFactory by default.
 
 ## 0.10.2
 
