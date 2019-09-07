@@ -311,11 +311,11 @@ public class VideoPlayerPlugin implements MethodCallHandler {
       Uri uri = Uri.parse(dataSource);
 
       DataSource.Factory dataSourceFactory;
-      if (isFileOrAsset(uri)) {
+      if (!isHTTP(uri)) {
         dataSourceFactory = new DefaultDataSourceFactory(context, "ExoPlayer");
       } else {
         result.error(
-            "invalid_datasource", "clipping a video is only supported for files or assets", null);
+            "invalid_datasource", "clipping a video is not supported for http(s) videos", null);
         return;
       }
 
