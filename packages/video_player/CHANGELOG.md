@@ -13,9 +13,17 @@
 * Bump the minimum Flutter version to 1.2.0.
 * Add template type parameter to `invokeMethod` calls.
 
-## 0.10.2+3
+## 0.10.2+5
 
 * iOS: fixed some videos being rendered black
+
+## 0.10.2+4
+
+* Define clang module for iOS.
+
+## 0.10.2+3
+
+* Fix bug where formatHint was not being pass down to network sources.
 
 ## 0.10.2+2
 
