@@ -70,6 +70,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
     private QueuingEventSink eventSink = new QueuingEventSink();
 
     private final EventChannel eventChannel;
+    private final SimpleCache simpleCache;
+    private final Context context;
 
     private boolean isInitialized = false;
     private long startPositionMs = 0;
@@ -84,6 +86,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         String formatHint) {
       this.eventChannel = eventChannel;
       this.textureEntry = textureEntry;
+      this.simpleCache = simpleCache;
+      this.context = context;
 
       TrackSelector trackSelector = new DefaultTrackSelector();
       exoPlayer = ExoPlayerFactory.newSimpleInstance(context, trackSelector);
@@ -206,6 +210,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             public void onPlayerError(final ExoPlaybackException error) {
               if (eventSink != null) {
                 eventSink.error("VideoError", "Video player had error " + error, null);
+                SimpleCacheHelper.clearCache();
+
               }
             }
           });
@@ -345,15 +351,11 @@ public class VideoPlayerPlugin implements MethodCallHandler {
   private VideoPlayerPlugin(Registrar registrar) {
     this.registrar = registrar;
     this.videoPlayers = new LongSparseArray<>();
-    File cacheDirectory = new File(registrar.context().getCacheDir(), "danztmp");
-    this.simpleCache = SimpleCacheHelper.getInstance(cacheDirectory, registrar.context());
   }
 
   private final LongSparseArray<VideoPlayer> videoPlayers;
 
   private final Registrar registrar;
-
-  private final SimpleCache simpleCache;
 
   private void disposeAllPlayers() {
     for (int i = 0; i < videoPlayers.size(); i++) {
@@ -389,6 +391,9 @@ public class VideoPlayerPlugin implements MethodCallHandler {
           EventChannel eventChannel =
               new EventChannel(
                   registrar.messenger(), "flutter.io/videoPlayer/videoEvents" + handle.id());
+
+          File cacheDirectory = new File(registrar.context().getCacheDir(), "danztmp");
+          SimpleCache simpleCache = SimpleCacheHelper.getInstance(cacheDirectory, registrar.context());
 
           VideoPlayer player;
           if (call.argument("asset") != null) {
